@@ -51,6 +51,14 @@ contract AliumToken is ERC20, Ownable {
         emit DevFeeToChanged(_feeTo);
     }
 
+    function disableAllFees() external onlyOwner {
+        devFee = 0;
+        burnFee = 0;
+
+        emit DevFeeChanged(0);
+        emit BurnFeeChanged(0);
+    }
+
     function transfer(address _recipient, uint256 _amount)
         public
         override(ERC20)
