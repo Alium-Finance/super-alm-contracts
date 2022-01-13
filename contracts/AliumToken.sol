@@ -2,16 +2,20 @@
 
 pragma solidity ^0.8.4;
 
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "./Whitelist.sol";
 
 // AliumToken - deflationary, upgradeable token.
-contract AliumToken is ERC20, Ownable {
+contract AliumToken is ERC20, Whitelist {
     uint256 public constant SYSTEM_DECIMAL = 10_000;
 
     address public devFeeTo;
     uint256 public devFee;
     uint256 public burnFee;
+
+    event BurnFeeChanged(uint256 percent);
+    event DevFeeChanged(uint256 percent);
+    event DevFeeToChanged(address feeTo);
 
     constructor(address _dev) ERC20("AliumToken", "ALM") {
         devFeeTo = _dev;
@@ -64,16 +68,20 @@ contract AliumToken is ERC20, Ownable {
         override(ERC20)
         returns (bool)
     {
-        uint256 burned = _excludeFee(_amount, burnFee);
-        uint256 toDev = _excludeFee(_amount, devFee);
-        if (burned > 0) {
-            _burn(_msgSender(), burned);
-        }
-        if (toDev > 0) {
-            _transfer(_msgSender(), devFeeTo, toDev);
-        }
+        if (isMember(_msgSender()) || isMember(_recipient)) {
+            _transfer(_msgSender(), _recipient, _amount);
+        } else {
+            uint256 burned = _excludeFee(_amount, burnFee);
+            uint256 toDev = _excludeFee(_amount, devFee);
+            if (burned > 0) {
+                _burn(_msgSender(), burned);
+            }
+            if (toDev > 0) {
+                _transfer(_msgSender(), devFeeTo, toDev);
+            }
 
-        _transfer(_msgSender(), _recipient, (_amount - burned) - toDev);
+            _transfer(_msgSender(), _recipient, (_amount - burned) - toDev);
+        }
 
         return true;
     }
@@ -83,16 +91,20 @@ contract AliumToken is ERC20, Ownable {
         address _recipient,
         uint256 _amount
     ) public override(ERC20) returns (bool) {
-        uint256 burned = _excludeFee(_amount, burnFee);
-        uint256 toDev = _excludeFee(_amount, devFee);
-        if (burned > 0) {
-            _burn(_sender, burned);
-        }
-        if (toDev > 0) {
-            _transfer(_sender, devFeeTo, toDev);
-        }
+        if (isMember(_sender) || isMember(_recipient)) {
+            _transfer(_sender, _recipient, _amount);
+        } else {
+            uint256 burned = _excludeFee(_amount, burnFee);
+            uint256 toDev = _excludeFee(_amount, devFee);
+            if (burned > 0) {
+                _burn(_sender, burned);
+            }
+            if (toDev > 0) {
+                _transfer(_sender, devFeeTo, toDev);
+            }
 
-        _transfer(_sender, _recipient, (_amount - burned) - toDev);
+            _transfer(_sender, _recipient, (_amount - burned) - toDev);
+        }
 
         uint256 currentAllowance = allowance(_sender, _msgSender());
 
