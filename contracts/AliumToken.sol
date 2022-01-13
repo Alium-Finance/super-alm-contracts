@@ -31,14 +31,14 @@ contract AliumToken is ERC20, Ownable {
 
     // _percent depended on SYSTEM_DECIMAL
     function setBurnFee(uint256 _percent) external onlyOwner {
-        require(_percent <= SYSTEM_DECIMAL, "SYSTEM_DECIMAL overset");
+        require(_percent + devFee <= SYSTEM_DECIMAL / 2, "SYSTEM_DECIMAL overset");
 
         burnFee = _percent;
         emit BurnFeeChanged(_percent);
     }
 
     function setDevFee(uint256 _percent) external onlyOwner {
-        require(_percent <= SYSTEM_DECIMAL, "SYSTEM_DECIMAL overset");
+        require(_percent + burnFee <= SYSTEM_DECIMAL / 2, "SYSTEM_DECIMAL overset");
 
         devFee = _percent;
         emit DevFeeChanged(_percent);
