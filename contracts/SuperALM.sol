@@ -41,8 +41,8 @@ contract SuperALM is GovernmentToken {
 
     // @dev Destroys `amount` tokens from the caller.
     function burn(uint256 _amount) external {
-        _burn(_msgSender(), _amount);
-        _moveDelegates(_delegates[_msgSender()], address(0), _amount);
+        _burn(msg.sender, _amount);
+        _moveDelegates(_delegates[msg.sender], address(0), _amount);
     }
 
     // @dev An = A1 + (n - 1)·d; where d = A1, An - price
