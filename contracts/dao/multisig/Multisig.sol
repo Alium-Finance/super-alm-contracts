@@ -16,8 +16,8 @@ contract Multisig is Signable {
     }
 
     struct Proposal {
-        // @dev actual signs
-        uint256 signs;
+        // @dev actual weight
+        uint256 weight;
         Status status;
         /// @notice Creator of the proposal
         address proposer;
@@ -49,9 +49,7 @@ contract Multisig is Signable {
     event Executed(uint256 id);
     event Cancelled(uint256 id);
 
-    constructor(address _timelock, address[] memory _accounts)
-        Signable(_accounts)
-    {
+    constructor(address _timelock, address _govToken) Signable(_govToken) {
         require(_timelock != address(0), "Timelock zero");
 
         timelock = _timelock;
@@ -64,7 +62,7 @@ contract Multisig is Signable {
         bytes[] memory calldatas,
         string memory description,
         address callFrom // Pass SAFE STORAGE address if want interact with it
-    ) external onlySigner {
+    ) external anyProposalCreator {
         require(
             targets.length == values.length &&
             targets.length == signatures.length &&
@@ -80,13 +78,14 @@ contract Multisig is Signable {
         proposal.description = description;
         proposal.proposer = msg.sender;
         proposal.callFrom = callFrom;
-        proposal.signs = 1;
+        proposal.weight = 1;
         proposal.initiatedAt = block.timestamp;
 
         proposalCount++;
 
         uint256 proposalId = proposalCount;
         proposals[proposalId] = proposal;
+        votedBy[msg.sender][proposalId] = true;
 
         emit ProposalInitialized(proposalId, msg.sender);
         emit Signed(proposalId, msg.sender);
@@ -99,8 +98,8 @@ contract Multisig is Signable {
         votedBy[msg.sender][_proposalId] = true;
 
         Proposal storage proposal = proposals[_proposalId];
-        proposal.signs++;
-        if (proposal.signs == requiredSigns()) {
+        proposal.weight += IERC721(governanceToken).balanceOf(msg.sender);
+        if (proposal.weight == requiredWeight()) {
             proposal.status = Status.QUEUED; // block status
             proposal.eta = ITimelock(timelock).delay() + block.timestamp;
             TimelockLibrary.Transaction memory txn;
@@ -232,18 +231,18 @@ contract Multisig is Signable {
         if (p.status == Status.EXECUTED) {
             return Status.EXECUTED;
         }
-        if (p.signs > 0) {
+        if (p.weight > 0) {
             if (p.eta != 0) {
                 if (p.eta + TimelockLibrary.GRACE_PERIOD <= block.timestamp) {
                     return Status.CANCELLED;
                 }
             } else {
-                if (p.initiatedAt + TIME_FOR_SIGNING < block.timestamp) {
+                if (p.initiatedAt + timeForSigning < block.timestamp) {
                     return Status.CANCELLED;
                 }
             }
 
-            if (requiredSigns() == p.signs) {
+            if (requiredWeight() == p.weight) {
                 return Status.QUEUED;
             }
 
@@ -261,5 +260,10 @@ contract Multisig is Signable {
         (bool success, ) = address(this).call(data);
 
         require(success, "admin call failed");
+    }
+
+    modifier anyProposalCreator() {
+        require(canCreateProposal(msg.sender), "No permission");
+        _;
     }
 }

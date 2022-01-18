@@ -2,90 +2,44 @@
 
 pragma solidity ^0.8.4;
 
+import { IERC721, IERC721Enumerable } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
+
 contract Signable {
-    uint256 public constant MIN_NUM_SIGNERS = 4;
-    uint256 public constant MAX_NUM_SIGNERS = 100;
-    uint256 public constant TIME_FOR_SIGNING = 1 days;
+    uint256 public constant SYSTEM_DECIMAL = 10_000;
 
-    uint256 public totalSigners;
+    uint256 public timeForSigning = 14 days;
+    uint256 public minProposerBalance = 23; // ~0.25%
+    uint256 public minRequiredWeight = 444; // 8888/20 (5% of max total supply)
 
-    uint256 private _requiredSigns;
+    address public governanceToken;
 
-    mapping(address => bool) private _signers;
+    constructor(address _govToken) {
+        require(_govToken != address(0), "Gov token zero");
 
-    event SignerChanged(address prev, address next);
-
-    constructor(address[] memory _accounts) {
-        require(
-            _accounts.length >= MIN_NUM_SIGNERS,
-            "Num signers consensus not reached"
-        );
-
-        for (uint256 i; i < _accounts.length; i++) {
-            _setSigner(_accounts[i], true);
-        }
-
-        totalSigners += _accounts.length;
-        _requiredSigns = 3;
+        governanceToken = _govToken;
     }
 
-    function requiredSigns() public view returns (uint256) {
-        if (_requiredSigns > totalSigners) {
-            return _requiredSigns;
-        }
-
-        return
-            (_requiredSigns < (totalSigners * 3) / 4)
-                ? (totalSigners * 3) / 4
-                : _requiredSigns;
+    function canCreateProposal(address _account) public view returns (bool resolved) {
+        uint256 balance = IERC721(governanceToken).balanceOf(_account);
+        resolved = !!(balance >= minProposerBalance);
     }
 
     // @dev should be called if it is possible as second method in batch transaction
     // on add/remove call.
-    function setRequiredSigns(uint256 _signs) public onlyThis {
-        uint256 consRS = (totalSigners * 3) / 4;
-
-        require(_signs <= totalSigners && _signs >= consRS, "CONS_REQU_SIGNS");
-
-        _requiredSigns = _signs;
+    function setMinRequiredWeight(uint256 _value) public onlyThis {
+        minRequiredWeight = _value;
     }
 
-    function addSigner(address _account) public onlyThis {
-        _signers[_account] = true;
-        totalSigners++;
-
-        require(totalSigners <= MAX_NUM_SIGNERS, "NUM_SIGS_CONS");
-
-        emit SignerChanged(address(0), _account);
-    }
-
-    function removeSigner(address _account) public onlyThis {
-        _signers[_account] = false;
-        totalSigners--;
-
-        require(totalSigners >= MIN_NUM_SIGNERS, "NUM_SIGS_CONS");
-
-        emit SignerChanged(_account, address(0));
-    }
-
-    function flipSignerAddress(address _old, address _new) public onlyThis {
-        require(_signers[_old], "not signer");
-        require(_old != _new, "the same address");
-        require(!_signers[_new], "already signer");
-        require(_new != address(0), "zero address");
-
-        _signers[_old] = false;
-        _signers[_new] = true;
-
-        emit SignerChanged(_old, _new);
-    }
-
-    function _setSigner(address _account, bool _status) private {
-        _signers[_account] = _status;
+    function requiredWeight() public view returns (uint256 weight) {
+        uint256 supply = IERC721Enumerable(governanceToken).totalSupply();
+        weight = supply / 2;
+        if (weight < minRequiredWeight) {
+            weight = minRequiredWeight; // 8888/20 (5% of total supply)
+        }
     }
 
     modifier onlySigner() {
-        require(_signers[msg.sender], "No permission");
+        require(IERC721(governanceToken).balanceOf(msg.sender) != 0, "No permission");
         _;
     }
 
