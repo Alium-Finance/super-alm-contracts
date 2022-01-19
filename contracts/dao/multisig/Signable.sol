@@ -24,10 +24,16 @@ contract Signable {
         resolved = !!(balance >= minProposerBalance);
     }
 
-    // @dev should be called if it is possible as second method in batch transaction
-    // on add/remove call.
+    function setTimeForSigning(uint256 _value) public onlyThis {
+        timeForSigning = _value;
+    }
+
     function setMinRequiredWeight(uint256 _value) public onlyThis {
         minRequiredWeight = _value;
+    }
+
+    function setMinProposerBalance(uint256 _value) public onlyThis {
+        minProposerBalance = _value;
     }
 
     function requiredWeight() public view returns (uint256 weight) {
