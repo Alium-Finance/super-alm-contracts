@@ -2,9 +2,9 @@
 
 pragma solidity ^0.8.4;
 
-import "./Signable.sol";
 import "../interfaces/ITimelock.sol";
 import "../libs/TimelockLibrary.sol";
+import { IERC20, Signable } from "./Signable.sol";
 
 contract Multisig is Signable {
     enum Status {
@@ -49,7 +49,7 @@ contract Multisig is Signable {
     event Executed(uint256 id);
     event Cancelled(uint256 id);
 
-    constructor(address _timelock, address _govToken) Signable(_govToken) {
+    constructor(address _timelock, IERC20 _govToken) Signable(_govToken) {
         require(_timelock != address(0), "Timelock zero");
 
         timelock = _timelock;
@@ -98,7 +98,7 @@ contract Multisig is Signable {
         votedBy[msg.sender][_proposalId] = true;
 
         Proposal storage proposal = proposals[_proposalId];
-        proposal.weight += IERC721(governanceToken).balanceOf(msg.sender);
+        proposal.weight += governanceToken.balanceOf(msg.sender);
         if (proposal.weight == requiredWeight()) {
             proposal.status = Status.QUEUED; // block status
             proposal.eta = ITimelock(timelock).delay() + block.timestamp;
