@@ -168,7 +168,7 @@ contract Multisig is Signable {
         emit Executed(_proposalId);
     }
 
-    function cancel(uint256 _proposalId) external onlySigner {
+    function cancel(uint256 _proposalId) external {
         Status status = getStatus(_proposalId);
 
         require(
@@ -177,6 +177,9 @@ contract Multisig is Signable {
         );
 
         Proposal storage proposal = proposals[_proposalId];
+
+        require(msg.sender == proposal.proposer, "Only proposer access");
+
         proposal.status = Status.CANCELLED;
 
         TimelockLibrary.Transaction memory txn;
