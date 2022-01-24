@@ -40,7 +40,7 @@ contract Multisig is Signable {
     mapping(address => mapping(uint256 => bool)) public votedBy;
 
     /// @notice The total number of proposals
-    uint256 public proposalCount;
+    uint256 public proposalTrackerId;
 
     address public timelock;
 
@@ -81,11 +81,11 @@ contract Multisig is Signable {
         proposal.weight = 1;
         proposal.initiatedAt = block.timestamp;
 
-        proposalCount++;
-
-        uint256 proposalId = proposalCount;
+        uint256 proposalId = proposalTrackerId;
         proposals[proposalId] = proposal;
         votedBy[msg.sender][proposalId] = true;
+
+        proposalTrackerId++;
 
         emit ProposalInitialized(proposalId, msg.sender);
         emit Signed(proposalId, msg.sender);
