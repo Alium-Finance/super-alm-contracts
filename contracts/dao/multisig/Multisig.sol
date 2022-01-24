@@ -55,7 +55,7 @@ contract Multisig is Signable {
         timelock = _timelock;
     }
 
-    function createAndSign(
+    function create(
         address[] memory targets,
         uint256[] memory values,
         string[] memory signatures,
@@ -78,12 +78,10 @@ contract Multisig is Signable {
         proposal.description = description;
         proposal.proposer = msg.sender;
         proposal.callFrom = callFrom;
-        proposal.weight = 1;
         proposal.initiatedAt = block.timestamp;
 
         uint256 proposalId = proposalTrackerId;
         proposals[proposalId] = proposal;
-        votedBy[msg.sender][proposalId] = true;
 
         proposalTrackerId++;
 
