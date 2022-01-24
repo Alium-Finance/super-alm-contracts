@@ -86,7 +86,6 @@ contract Multisig is Signable {
         proposalTrackerId++;
 
         emit ProposalInitialized(proposalId, msg.sender);
-        emit Signed(proposalId, msg.sender);
     }
 
     function sign(uint256 _proposalId) external onlySigner {
