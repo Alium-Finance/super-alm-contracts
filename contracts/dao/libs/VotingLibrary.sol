@@ -12,8 +12,6 @@ library VotingLibrary {
     }
 
     struct Proposal {
-        // @dev actual weight
-        uint256 weight;
         Status status;
         /// @notice Creator of the proposal
         address proposer;
