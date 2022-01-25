@@ -2,41 +2,19 @@
 
 pragma solidity ^0.8.4;
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./Signable.sol";
+import "./Proposal.sol";
 import "../interfaces/ITimelock.sol";
+import "../interfaces/IGovernanceToken.sol";
+import "../interfaces/IProposal.sol";
 import "../libs/TimelockLibrary.sol";
-import { IERC20, Signable } from "./Signable.sol";
+import "../libs/VotingLibrary.sol";
 
 contract Multisig is Signable {
-    enum Status {
-        EMPTY, // zero state
-        INITIALIZED, // created with one sign
-        CANCELLED, // canceled by consensus
-        QUEUED, // approved and send to timelock
-        EXECUTED // executed
-    }
+    using VotingLibrary for *;
 
-    struct Proposal {
-        // @dev actual weight
-        uint256 weight;
-        Status status;
-        /// @notice Creator of the proposal
-        address proposer;
-        /// @notice The timestamp that the proposal will be available for execution, set once the vote succeeds
-        uint256 eta;
-        /// @notice the ordered list of target addresses for calls to be made
-        address[] targets;
-        /// @notice The ordered list of values (i.e. msg.value) to be passed to the calls to be made
-        uint256[] values;
-        /// @notice The ordered list of function signatures to be called
-        string[] signatures;
-        /// @notice The ordered list of calldata to be passed to each call
-        bytes[] calldatas;
-        address callFrom;
-        string description;
-        uint256 initiatedAt;
-    }
-
-    mapping(uint256 => Proposal) public proposals;
+    mapping(uint256 => address) public proposals;
     mapping(address => mapping(uint256 => bool)) public votedBy;
 
     /// @notice The total number of proposals
@@ -70,7 +48,7 @@ contract Multisig is Signable {
             "Wrong arrays length"
         );
 
-        Proposal memory proposal;
+        VotingLibrary.Proposal memory proposal;
         proposal.targets = targets;
         proposal.values = values;
         proposal.signatures = signatures;
@@ -81,7 +59,8 @@ contract Multisig is Signable {
         proposal.initiatedAt = block.timestamp;
 
         uint256 proposalId = proposalTrackerId;
-        proposals[proposalId] = proposal;
+        proposals[proposalId] = address(new Proposal());
+        IProposal(proposals[proposalId]).set(proposal);
 
         proposalTrackerId++;
 
@@ -89,16 +68,20 @@ contract Multisig is Signable {
     }
 
     function sign(uint256 _proposalId) external onlySigner {
-        require(getStatus(_proposalId) == Status.INITIALIZED, "Wrong status");
+        require(getStatus(_proposalId) == VotingLibrary.Status.INITIALIZED, "Wrong status");
         require(!votedBy[msg.sender][_proposalId], "Already signed");
 
         votedBy[msg.sender][_proposalId] = true;
 
-        Proposal storage proposal = proposals[_proposalId];
-        proposal.weight += governanceToken.balanceOf(msg.sender);
-        if (proposal.weight == requiredWeight()) {
-            proposal.status = Status.QUEUED; // block status
-            proposal.eta = ITimelock(timelock).delay() + block.timestamp;
+        if (
+            IGovernanceToken(address(governanceToken)).getCurrentVotes(proposals[_proposalId]) ==
+            requiredWeight()
+        ) {
+            IProposal(proposals[_proposalId]).setStatus(VotingLibrary.Status.QUEUED);
+            IProposal(proposals[_proposalId]).setEta(ITimelock(timelock).delay() + block.timestamp);
+
+            VotingLibrary.Proposal memory proposal = IProposal(proposals[_proposalId]).get();
+
             TimelockLibrary.Transaction memory txn;
             for (uint256 i; i < proposal.targets.length; i++) {
                 txn.target = proposal.targets[i];
@@ -136,10 +119,11 @@ contract Multisig is Signable {
             require(msg.value == 0, "Pay from storage");
         }
 
-        require(getStatus(_proposalId) == Status.QUEUED, "Wrong status");
+        require(getStatus(_proposalId) == VotingLibrary.Status.QUEUED, "Wrong status");
 
-        Proposal storage proposal = proposals[_proposalId];
-        proposal.status = Status.EXECUTED; // block status
+        VotingLibrary.Proposal memory proposal = IProposal(proposals[_proposalId]).get();
+        IProposal(proposals[_proposalId]).setStatus(VotingLibrary.Status.EXECUTED);
+
         TimelockLibrary.Transaction memory txn;
         for (uint256 i; i < proposal.targets.length; i++) {
             txn.target = proposal.targets[i];
@@ -169,18 +153,18 @@ contract Multisig is Signable {
     }
 
     function cancel(uint256 _proposalId) external {
-        Status status = getStatus(_proposalId);
+        VotingLibrary.Status status = getStatus(_proposalId);
 
         require(
-            status == Status.INITIALIZED || status == Status.QUEUED,
+            status == VotingLibrary.Status.INITIALIZED || status == VotingLibrary.Status.QUEUED,
             "Wrong status"
         );
 
-        Proposal storage proposal = proposals[_proposalId];
+        VotingLibrary.Proposal memory proposal = IProposal(proposals[_proposalId]).get();
 
         require(msg.sender == proposal.proposer, "Only proposer access");
 
-        proposal.status = Status.CANCELLED;
+        IProposal(proposals[_proposalId]).setStatus(VotingLibrary.Status.CANCELLED);
 
         TimelockLibrary.Transaction memory txn;
         for (uint256 i; i < proposal.targets.length; i++) {
@@ -218,38 +202,39 @@ contract Multisig is Signable {
             bytes[] memory calldatas
         )
     {
-        Proposal storage p = proposals[_proposalId];
+        VotingLibrary.Proposal memory p = IProposal(proposals[_proposalId]).get();
         return (p.targets, p.values, p.signatures, p.calldatas);
     }
 
-    function getStatus(uint256 _proposalId) public view returns (Status) {
-        Proposal memory p = proposals[_proposalId];
+    function getStatus(uint256 _proposalId) public view returns (VotingLibrary.Status) {
+        VotingLibrary.Proposal memory p = IProposal(proposals[_proposalId]).get();
+        uint256 weight = IGovernanceToken(address(governanceToken)).getCurrentVotes(proposals[_proposalId]);
 
-        if (p.status == Status.CANCELLED) {
-            return Status.CANCELLED;
+        if (p.status == VotingLibrary.Status.CANCELLED) {
+            return VotingLibrary.Status.CANCELLED;
         }
-        if (p.status == Status.EXECUTED) {
-            return Status.EXECUTED;
+        if (p.status == VotingLibrary.Status.EXECUTED) {
+            return VotingLibrary.Status.EXECUTED;
         }
-        if (p.weight > 0) {
+        if (weight > 0) {
             if (p.eta != 0) {
                 if (p.eta + TimelockLibrary.GRACE_PERIOD <= block.timestamp) {
-                    return Status.CANCELLED;
+                    return VotingLibrary.Status.CANCELLED;
                 }
             } else {
                 if (p.initiatedAt + timeForSigning < block.timestamp) {
-                    return Status.CANCELLED;
+                    return VotingLibrary.Status.CANCELLED;
                 }
             }
 
-            if (requiredWeight() == p.weight) {
-                return Status.QUEUED;
+            if (weight >= requiredWeight()) {
+                return VotingLibrary.Status.QUEUED;
             }
 
-            return Status.INITIALIZED;
+            return VotingLibrary.Status.INITIALIZED;
         }
 
-        return Status.EMPTY;
+        return VotingLibrary.Status.EMPTY;
     }
 
     // @dev method should be called only from timelock contract.
