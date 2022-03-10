@@ -34,11 +34,11 @@ contract Multisig is Signable {
     }
 
     function create(
-        address[] memory targets,
-        uint256[] memory values,
-        string[] memory signatures,
-        bytes[] memory calldatas,
-        string memory description,
+        address[] calldata targets,
+        uint256[] calldata values,
+        string[] calldata signatures,
+        bytes[] calldata calldatas,
+        string calldata description,
         address callFrom // Pass SAFE STORAGE address if want interact with it
     ) external anyProposalCreator {
         require(
