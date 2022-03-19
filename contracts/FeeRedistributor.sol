@@ -45,12 +45,14 @@ contract FeeRedistributor is Ownable {
 
         swapInfo = _swapInfo;
 
-        WETH = IUniswapV2Router01(swapInfo.router).WETH();
+        WETH = IUniswapV2Router01(_swapInfo.router).WETH();
 
         for (uint i; i < _recipients.length; i++) {
-            recipients[i] = _recipients[i];
+            recipients.push(_recipients[i]);
             totalShares += _recipients[i].share;
         }
+
+        IERC20(_swapInfo.alium).approve(_swapInfo.router, type(uint256).max);
     }
 
     receive() external payable {
@@ -66,7 +68,7 @@ contract FeeRedistributor is Ownable {
                 IERC20(swapInfo.alium).safeTransfer(recipients[i].account, reward);
             }
             if (recipients[i].mode == Mode.SWAP_AND_TRANSFER) {
-                address[] memory path;
+                address[] memory path = new address[](2);
                 path[0] = swapInfo.alium;
                 path[1] = WETH;
                 if (swapInfo.deflationary) {
@@ -76,8 +78,8 @@ contract FeeRedistributor is Ownable {
                         path,
                         recipients[i].account,
                         block.timestamp + 15 * 60
-                    ) returns (uint256[] memory amounts) {
-                        Address.sendValue(payable(recipients[i].account), amounts[amounts.length - 1]);
+                    ) {
+                        //
                     } catch Error(string memory reason) {
                         errorsCounter++;
                         emit ErrorHandled(reason);
@@ -89,8 +91,8 @@ contract FeeRedistributor is Ownable {
                         path,
                         recipients[i].account,
                         block.timestamp + 15 * 60
-                    ) returns (uint256[] memory amounts) {
-                        Address.sendValue(payable(recipients[i].account), amounts[amounts.length - 1]);
+                    ) {
+                        //
                     } catch Error(string memory reason) {
                         errorsCounter++;
                         emit ErrorHandled(reason);
