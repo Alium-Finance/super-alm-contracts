@@ -23,8 +23,20 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
 // Go to https://hardhat.org/config/ to learn more
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.4",
+  solidity: {
+    version: "0.8.4",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 10000
+      }
+    }
+  },
+  defaultNetwork: "hardhat",
   networks: {
+    hardhat: {
+      //
+    },
     ropsten: {
       url: process.env.ROPSTEN_URL || "",
       accounts:
@@ -34,6 +46,10 @@ const config: HardhatUserConfig = {
       url: "https://data-seed-prebsc-1-s1.binance.org:8545",
       accounts:  process.env.PRIVATE_KEY !== undefined ? [process.env.PRIVATE_KEY] : [],
     },
+    bscMainnet: {
+      url: "https://bsc-dataseed.binance.org/",
+      accounts:  process.env.PRIVATE_KEY_BSC !== undefined ? [process.env.PRIVATE_KEY_BSC] : [],
+    },
   },
   gasReporter: {
     enabled: process.env.REPORT_GAS !== undefined,
@@ -41,6 +57,15 @@ const config: HardhatUserConfig = {
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY,
+  },
+  mocha: {
+    timeout: 50000
+  },
+  paths: {
+    sources: "./contracts",
+    tests: "./test",
+    cache: "./cache",
+    artifacts: "./artifacts"
   },
 };
 
