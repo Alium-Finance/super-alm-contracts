@@ -56,7 +56,7 @@ abstract contract GovernmentToken is ERC20 {
     );
 
     constructor(string memory _name, string memory _symbol)
-        ERC20("AliumToken", "ALM")
+        ERC20(_name, _symbol)
     {
         //
     }

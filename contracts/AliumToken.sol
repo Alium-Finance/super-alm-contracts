@@ -118,6 +118,21 @@ contract AliumToken is ERC20, Whitelist {
         return true;
     }
 
+    function estimateOutput(
+        address _sender,
+        address _recipient,
+        uint256 _amountIn
+    ) external view returns (uint256 amountOut, uint256 excluded) {
+        if (isMember(_sender) || isMember(_recipient)) {
+            amountOut = _amountIn;
+        } else {
+            uint256 burned = _excludeFee(_amountIn, burnFee);
+            uint256 toDev = _excludeFee(_amountIn, devFee);
+            amountOut = (_amountIn - burned) - toDev;
+            excluded = burned + toDev;
+        }
+    }
+
     function _excludeFee(uint256 _amount, uint256 _fee)
         internal
         pure
