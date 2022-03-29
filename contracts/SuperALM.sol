@@ -24,36 +24,37 @@ contract SuperALM is GovernmentToken {
         alm = _almToken;
     }
 
-    function mint(uint256 _amount) external {
-        require(_amount != 0, "Zero tokens mint");
+    // @dev _amountInt - integer amount SALM
+    function mint(uint256 _amountInt) external {
+        require(_amountInt != 0, "Zero tokens mint");
 
-        uint256 deposit = countMintPrice(_amount);
+        uint256 deposit = countMintPrice(_amountInt);
 
-        minted += _amount;
+        minted += _amountInt;
 
         IERC20(alm).safeTransferFrom(msg.sender, address(this), deposit);
         IAliumToken(alm).burn(IERC20(alm).balanceOf(address(this)));
 
-        uint256 reward = _amount * REWARD;
+        uint256 reward = _amountInt * REWARD;
         _mint(msg.sender, reward);
         _moveDelegates(address(0), msg.sender, reward);
     }
 
-    // @dev Destroys `amount` tokens from the caller.
-    function burn(uint256 _amount) external {
-        _burn(msg.sender, _amount);
-        _moveDelegates(_delegates[msg.sender], address(0), _amount);
+    // @dev Destroys `_amountWei` tokens from the caller.
+    function burn(uint256 _amountWei) external {
+        _burn(msg.sender, _amountWei);
+        _moveDelegates(_delegates[msg.sender], address(0), _amountWei);
     }
 
     // @dev An = A1 + (n - 1)·d; where d = A1, An - price
-    function countMintPrice(uint256 _amount)
+    function countMintPrice(uint256 _amountInt)
         public
         view
         returns (uint256 price)
     {
         uint256 tokenId = minted;
         uint256 x = BASIC_PRICE;
-        for (uint256 i; i < _amount; i++) {
+        for (uint256 i; i < _amountInt; i++) {
             price += x + tokenId * x;
             tokenId++;
         }
